@@ -6,7 +6,7 @@ inputs:
   GITHUB_TOKEN:
     required: true
     description: Github Token
-  DEPLOY_ENV:
+  DEPLOY_TO:
     required: true
     description: Set Enviroment to deploy
   SSH_PRIV_KEY_LIBS_BACKEND:
@@ -55,13 +55,13 @@ runs:
 
     - name: Check Promote and GAE Deploy ${{github.event.repository.name}} - ${{env.TAG}}
       run: |
-        if [[ (${{ inputs.DEPLOY_ENV }} == 'legacy') ]]
+        if [[ (${{ inputs.DEPLOY_TO }} == 'legacy') ]]
         then
             echo $PORTO_CREDENTIALS|gcloud auth activate-service-account --key-file=-
             OLD_TAG=${{env.TAG}}
             TAG="${OLD_TAG//./-}"
             ${RETRY} gcloud -q --project=${PORTO_PROJECT} app deploy app.yaml -v=$TAG --promote
-        elif [[ (${{ inputs.DEPLOY_ENV }} == 'prod-porto') ]]
+        elif [[ (${{ inputs.DEPLOY_TO }} == 'prod-porto') ]]
         then
             echo $PORTO_CREDENTIALS|gcloud auth activate-service-account --key-file=-
             OLD_TAG=${{env.TAG}}
