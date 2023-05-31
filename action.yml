@@ -55,13 +55,13 @@ runs:
 
     - name: Check Promote and GAE Deploy ${{github.event.repository.name}} - ${{env.TAG}}
       run: |
-        if [[ (${{ inputs.DEPLOY_TO }} == 'legacy') ]]
+        if [[ (${{ inputs.DEPLOY_TO }} == 'app.yaml') ]]
         then
             echo $PORTO_CREDENTIALS|gcloud auth activate-service-account --key-file=-
             OLD_TAG=${{env.TAG}}
             TAG="${OLD_TAG//./-}"
             ${RETRY} gcloud -q --project=${PORTO_PROJECT} app deploy app.yaml -v=$TAG --promote
-        elif [[ (${{ inputs.DEPLOY_TO }} == 'prod-porto') ]]
+        elif [[ (${{ inputs.DEPLOY_TO }} == 'app-prod-porto.yaml') ]]
         then
             echo $PORTO_CREDENTIALS|gcloud auth activate-service-account --key-file=-
             OLD_TAG=${{env.TAG}}
