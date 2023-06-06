@@ -22,50 +22,64 @@ runs:
       
     - name: Checkout Main
       uses: actions/checkout@v3
-      with:
-        ref: 'main'
 
-    - name: Get latest release
-      id: latest_release
-      uses: kaliber5/action-get-release@v1
-      with:
-        token: ${{ inputs.GITHUB_TOKEN }}
-        latest: true
-
-    - name: Get Version to Deploy
-      run: echo "TAG=${{ steps.latest_release.outputs.tag_name }}" >> $GITHUB_ENV
-      shell: bash
-
-    - name: Upgrade wheel, setuptools, virtualenv
-      run: python2 --version; python2 -m pip install --upgrade pip wheel setuptools virtualenv
-      shell: bash
-    
-    - name: Get SSH_KEY LIBS-BACKEND
-      run: echo "${{inputs.SSH_PRIV_KEY_LIBS_BACKEND}}" > ssh-rsa.key ; atar-cli deploy --set-ssh=ssh-rsa.key ; rm -f ssh-rsa.key
-      shell: bash
-    
-    - name: Update Client/Update Third Party
-      run: atar-cli --update-all
-      shell: bash
-
-    - name: Deploy AppEngine ${{github.event.repository.name}} - ${{env.TAG}}
+    - name: Set Local DataTime
       run: |
-
+         echo "LOCAL_DATE=$(date +'%Y%m%d-%H%M')" >> $GITHUB_ENV
+         echo "CURRENT_DATE=$(date +'%Y-%m-%d %H:%M')" >> $GITHUB_ENV
+      shell: bash
+    
+    - name: Set Vars
+      run: |
+         echo "slack_name=Deploy-${GITHUB_REPOSITORY#*/}-${GITHUB_REF_NAME^^}" >> $GITHUB_ENV
+         echo "repo_name=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
+         echo "MESSAGE=$(echo '${{github.event.head_commit.message}}'|head -n 1)" >> $GITHUB_ENV
+         echo "app_tar=${GITHUB_REPOSITORY#*/}-${{github.ref_name}}-${{env.LOCAL_DATE}}" >> $GITHUB_ENV
+         echo "app_version=${{github.ref_name}}-${{env.LOCAL_DATE}}" >> $GITHUB_ENV
       shell: bash
 
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest faker coverage pytest-cov
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      shell: bash
+    
     - name: Check Promote and GAE Deploy ${{github.event.repository.name}} - ${{env.TAG}}
       run: |
-        if [[ (${{ inputs.DEPLOY_TO }} == 'app.yaml') ]]
+        if [[ (${{ inputs.DEPLOY_TO }} == 'atar') ]]
+        then
+            echo $ATAR_CREDENTIALS|gcloud auth activate-service-account --key-file=-
+            ${RETRY} gcloud -q --project=${ATAR_PROJECT} app deploy app.dev.yaml -v=${app_version} --promote
+        
+        elif [[ (${{ inputs.DEPLOY_TO }} == 'porto') ]]
         then
             echo $PORTO_CREDENTIALS|gcloud auth activate-service-account --key-file=-
-            OLD_TAG=${{env.TAG}}
-            TAG="${OLD_TAG//./-}"
-            ${RETRY} gcloud -q --project=${PORTO_PROJECT} app deploy app.yaml -v=$TAG --promote
-        elif [[ (${{ inputs.DEPLOY_TO }} == 'app-prod-porto.yaml') ]]
-        then
-            echo $PORTO_CREDENTIALS|gcloud auth activate-service-account --key-file=-
-            OLD_TAG=${{env.TAG}}
-            TAG="${OLD_TAG//./-}"
-            ${RETRY} gcloud -q --project=${PORTO_PROJECT} app deploy app.prod-porto.yaml -v=$TAG --promote
+            ${RETRY} gcloud -q --project=${PORTO_PROJECT} app deploy app.prod-porto.yaml -v=${app_version} --promote
+
         fi
       shell: bash
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      with:
+        tag_name: ${{env.app_version}}
+        release_name: Release ${{env.app_version}}
+        body: |
+            Changes in this Release
+            - Release from: ${{github.ref_name}}
+            - Data do Deploy: ${{env.CURRENT_DATE}}
+            - Author: ${{env.AUTHOR}}
+            - Github Author: ${{env.AUTHOR_URL}}
+            - Commit: ${{github.sha}}
+            - Commit Message: ${{env.MESSAGE}}
+        draft: false
+        prerelease: false
+
+    
