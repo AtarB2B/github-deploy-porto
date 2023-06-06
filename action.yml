@@ -9,9 +9,6 @@ inputs:
   DEPLOY_TO:
     required: true
     description: Set Enviroment to deploy
-  SSH_PRIV_KEY_LIBS_BACKEND:
-    required: true
-    description: SSH_PRIV_KEY_LIBS_BACKEND
 
 runs:
   using: "composite"
